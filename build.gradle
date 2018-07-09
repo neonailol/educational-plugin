@@ -134,6 +134,12 @@ allprojects {
             exclude module: 'kotlin-runtime'
             exclude module: 'kotlin-stdlib'
         }
+
+        compile ("com.sparkjava:spark-core:2.7.2") {
+            exclude module: 'slf4j-api'
+        }
+        compile 'com.squareup.retrofit2:retrofit:2.4.0'
+        implementation 'com.squareup.retrofit2:converter-gson:2.4.0'
         compileOnly fileTree(dir: "${rootProject.buildDir}/javafx/jre/lib/ext")
     }
 }
