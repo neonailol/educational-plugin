@@ -11,7 +11,7 @@ import com.jetbrains.edu.learning.checkio.CheckiOOAuthBundle;
 import com.jetbrains.edu.learning.checkio.api.CheckiOApiService;
 import com.jetbrains.edu.learning.checkio.model.CheckiOUser;
 import com.jetbrains.edu.learning.checkio.model.Tokens;
-import com.jetbrains.edu.learning.stepik.StepikNames;
+import com.jetbrains.edu.learning.checkio.settings.CheckiOSettings;
 import org.apache.http.client.utils.URIBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -33,8 +33,8 @@ public final class CheckiOConnector {
   private static final Logger LOG = Logger.getInstance(CheckiOConnector.class);
   public static final Topic<CheckiOUserLoggedIn> LOGGED_IN = Topic.create("Edu.checkioUserLoggedIn", CheckiOUserLoggedIn.class);
 
-  private static final String CLIENT_ID = CheckiOOAuthBundle.message("checkioClientId");
-  private static final String CLIENT_SECRET = CheckiOOAuthBundle.message("checkioClientSecret");
+  private static final String CLIENT_ID = CheckiOOAuthBundle.messageOrDefault("checkioClientId", "");
+  private static final String CLIENT_SECRET = CheckiOOAuthBundle.messageOrDefault("checkioClientSecret", "");
 
   private static final CheckiOApiService API_SERVICE = new Retrofit.Builder()
     .baseUrl(CheckiONames.CHECKIO_URL)
@@ -46,7 +46,10 @@ public final class CheckiOConnector {
    // In case of Android Studio redirect_uri passes directly
   @Nullable
   public static Tokens getTokens(@NotNull String code, @NotNull String redirectUri) {
-    requireClientPropertiesExist();
+    if (!requireClientPropertiesExist()) {
+      return null;
+    }
+
     return getResponseBodyAndApply(
       API_SERVICE.getTokens(
         CheckiONames.GRANT_TYPE.AUTHORIZATION_CODE,
@@ -57,6 +60,7 @@ public final class CheckiOConnector {
       ),
       (tokens) -> {
         tokens.markAsReceived();
+        CheckiOSettings.getInstance().setTokens(tokens);
         return tokens;
       }
     );
@@ -64,7 +68,10 @@ public final class CheckiOConnector {
 
   @Nullable
   public static Tokens getTokens(@NotNull String code) {
-    requireClientPropertiesExist();
+    if (!requireClientPropertiesExist()) {
+      return null;
+    }
+
     return getResponseBodyAndApply(
       API_SERVICE.getTokens(
         CheckiONames.GRANT_TYPE.AUTHORIZATION_CODE,
@@ -75,31 +82,52 @@ public final class CheckiOConnector {
       ),
       (tokens) -> {
         tokens.markAsReceived();
+        CheckiOSettings.getInstance().setTokens(tokens);
         return tokens;
       }
     );
   }
 
   @Nullable
-  public static Tokens refreshTokens(@NotNull String refreshToken) {
-    requireClientPropertiesExist();
+  public static Tokens refreshTokens() {
+    if (!requireClientPropertiesExist()) {
+      return null;
+    }
+
+    final Tokens currentTokens = requireTokensExistAndUpToDate();
+    if (currentTokens == null) {
+      return null;
+    }
+
     return getResponseBodyAndApply(
       API_SERVICE.refreshTokens(
         CheckiONames.GRANT_TYPE.REFRESH_TOKEN,
         CLIENT_SECRET,
         CLIENT_ID,
-        refreshToken
+        currentTokens.getRefreshToken()
       ),
       (tokens) -> {
         tokens.markAsReceived();
+        CheckiOSettings.getInstance().setTokens(tokens);
         return tokens;
       }
     );
   }
 
   @Nullable
-  public static CheckiOUser getUser(@NotNull String accessToken) {
-    return getResponseBody(API_SERVICE.getUserInfo(accessToken));
+  public static CheckiOUser getUser() {
+    final Tokens currentTokens = requireTokensExistAndUpToDate();
+    if (currentTokens == null) {
+      return null;
+    }
+
+    return getResponseBodyAndApply(
+      API_SERVICE.getUserInfo(currentTokens.getAccessToken()),
+      (user) -> {
+        CheckiOSettings.getInstance().setUser(user);
+        return user;
+      }
+    );
   }
 
   @Nullable
@@ -108,7 +136,8 @@ public final class CheckiOConnector {
       final Response<T> response = call.execute();
 
       if (!response.isSuccessful()) {
-        LOG.error("Unsuccessful response: " + response.errorBody().string());
+        final String error = response.errorBody() == null ? "" : response.errorBody().string();
+        LOG.error("Unsuccessful response: " + error);
         return null;
       }
 
@@ -131,14 +160,37 @@ public final class CheckiOConnector {
     return getResponseBodyAndApply(call, UnaryOperator.identity());
   }
 
-  private static void requireClientPropertiesExist() {
+  private static boolean requireClientPropertiesExist() {
     final Pattern spacesStringPattern = Pattern.compile("\\p{javaWhitespace}*");
 
     if (spacesStringPattern.matcher(CLIENT_ID).matches()) {
       LOG.error("client_id is not provided");
+      return false;
     }
     if (spacesStringPattern.matcher(CLIENT_SECRET).matches()) {
       LOG.error("client_secret is not provided");
+      return false;
+    }
+    return true;
+  }
+
+  @Nullable
+  private static Tokens requireTokensExistAndUpToDate() {
+    final Tokens currentTokens = CheckiOSettings.getInstance().getTokens();
+    if (currentTokens == null) {
+      LOG.warn("Tokens is null");
+      return null;
+    } else if (!currentTokens.isUpToDate()) {
+      if (currentTokens.getRefreshToken() == null) {
+        LOG.warn("Couldn't refresh tokens because `refresh token` is not provided");
+        return null;
+      } else {
+        final Tokens newTokens = refreshTokens();
+        CheckiOSettings.getInstance().setTokens(newTokens);
+        return newTokens;
+      }
+    } else {
+      return currentTokens;
     }
   }
 
@@ -169,7 +221,7 @@ public final class CheckiOConnector {
   @NotNull
   public static String getOauthRedirectUri() {
     if (EduUtils.isAndroidStudio()) {
-      CustomAuthorizationServer customServer = new CustomAuthorizationServer(StepikNames.STEPIK);
+      CustomAuthorizationServer customServer = new CustomAuthorizationServer(CheckiONames.CHECKIO);
 
       int port = customServer.handle(createContextHandler(customServer));
       if (port != -1) {
@@ -180,12 +232,13 @@ public final class CheckiOConnector {
     return CheckiONames.EDU_CHECKIO_OAUTH_HOST + ":" + port + CheckiONames.EDU_CHECKIO_OAUTH_SERVICE;
   }
 
-  private static CustomAuthorizationServer.ContextHandler createContextHandler(CustomAuthorizationServer server) {
+  @NotNull
+  private static CustomAuthorizationServer.ContextHandler createContextHandler(@NotNull CustomAuthorizationServer server) {
     return new CustomAuthorizationServer.ContextHandler(server) {
       @Override
       public String afterCodeReceived(@NotNull String code) {
         final Tokens newTokens = getTokens(code, "http://localhost:" + getPort());
-        final CheckiOUser newUser = newTokens == null ? null : getUser(newTokens.getAccessToken());
+        final CheckiOUser newUser = getUser();
 
         if (newUser != null) {
           ApplicationManager.getApplication().getMessageBus().syncPublisher(LOGGED_IN).loggedIn(newTokens, newUser);
