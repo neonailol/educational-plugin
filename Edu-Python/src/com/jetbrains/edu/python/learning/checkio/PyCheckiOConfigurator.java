@@ -3,6 +3,7 @@ package com.jetbrains.edu.python.learning.checkio;
 import com.jetbrains.edu.learning.EduConfigurator;
 import com.jetbrains.edu.learning.EduCourseBuilder;
 import com.jetbrains.edu.learning.checker.TaskCheckerProvider;
+import com.jetbrains.edu.python.learning.checkio.checker.PyCheckiOTaskCheckerProvider;
 import com.jetbrains.python.newProject.PyNewProjectSettings;
 import org.jetbrains.annotations.NotNull;
 

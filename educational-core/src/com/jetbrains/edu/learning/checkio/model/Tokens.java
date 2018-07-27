@@ -2,6 +2,7 @@ package com.jetbrains.edu.learning.checkio.model;
 
 import com.google.gson.annotations.SerializedName;
 import com.intellij.util.xmlb.annotations.Property;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -21,15 +22,14 @@ public class Tokens {
   @Property
   private int myReceivingTime;
 
-  private Tokens() {
-    myAccessToken = "";
-    myRefreshToken = "";
-  }
+  private Tokens() { }
 
+  @Nullable
   public String getAccessToken() {
     return myAccessToken;
   }
 
+  @Nullable
   public String getRefreshToken() {
     return myRefreshToken;
   }

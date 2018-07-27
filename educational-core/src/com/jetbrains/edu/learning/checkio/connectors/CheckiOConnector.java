@@ -43,6 +43,14 @@ public final class CheckiOConnector {
     .build()
     .create(CheckiOApiService.class);
 
+  @Nullable
+  public static String getAccessToken() {
+    final Tokens currentTokens = requireTokensExistAndUpToDate();
+    if (currentTokens == null) {
+      return null;
+    }
+    return currentTokens.getAccessToken();
+  }
 
    // In case of Android Studio redirect_uri passes directly
   @Nullable
@@ -95,7 +103,7 @@ public final class CheckiOConnector {
       return null;
     }
 
-    final Tokens currentTokens = requireTokensExistAndUpToDate();
+    final Tokens currentTokens = requireTokensExist();
     if (currentTokens == null) {
       return null;
     }
@@ -189,9 +197,8 @@ public final class CheckiOConnector {
 
   @Nullable
   private static Tokens requireTokensExistAndUpToDate() {
-    final Tokens currentTokens = CheckiOSettings.getInstance().getTokens();
+    final Tokens currentTokens = requireTokensExist();
     if (currentTokens == null) {
-      LOG.warn("Tokens is null");
       return null;
     } else if (!currentTokens.isUpToDate()) {
       if (currentTokens.getRefreshToken() == null) {
@@ -205,6 +212,27 @@ public final class CheckiOConnector {
     } else {
       return currentTokens;
     }
+  }
+
+  @Nullable
+  private static Tokens requireTokensExist() {
+    final Tokens currentTokens = CheckiOSettings.getInstance().getTokens();
+    if (currentTokens == null) {
+      LOG.warn("Tokens are not provided");
+      return null;
+    }
+
+    if (currentTokens.getAccessToken() == null) {
+      LOG.warn("Tokens exist but access token is not provided");
+      return null;
+    }
+
+    if (currentTokens.getRefreshToken() == null) {
+      LOG.warn("Tokens exist, but refresh token is not provided");
+      return null;
+    }
+
+    return currentTokens;
   }
 
   public static void doAuthorize() {

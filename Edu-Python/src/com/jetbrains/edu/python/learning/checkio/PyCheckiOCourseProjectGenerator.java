@@ -81,7 +81,7 @@ public class PyCheckiOCourseProjectGenerator extends PyCourseProjectGenerator {
     final TaskFile taskFile = new TaskFile();
 
     taskFile.name = mission.getTitle() + ".py";
-    taskFile.text = mission.getCode();
+    taskFile.text = mission.getCode().replaceAll("\r\n", "\n");
     taskFile.setHighlightErrors(true);
 
     return taskFile;
