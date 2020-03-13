@@ -16,6 +16,6 @@ The best place to learn what this plugin is about is to check out PyCharm Edu [d
 Please submit your issues to [Educational Plugin YouTrack](https://youtrack.jetbrains.com/issues/EDU)
 
 ### Resources
-* This plugins comes with integration with [Stepik](http://welcome.stepik.org/) learning platform
+* This plugin comes with integration with [Stepik](http://welcome.stepik.org/) learning platform
 * You can learn more about our Kotlin support from [this](https://blog.jetbrains.com/kotlin/2016/03/kotlin-educational-plugin/) blog post
 * You can read more about plugin development in [IntelliJ Sdk Docs](http://www.jetbrains.org/intellij/sdk/docs/index.html)
